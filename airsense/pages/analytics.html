@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirSense — Analytics</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .stat-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+    .stat-box:hover { border-color: var(--border2); }
+    .stat-label { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem; }
+    .stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 800; }
+    .stat-change { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); margin-top: 0.25rem; }
+    .stat-change.up   { color: var(--red); }
+    .stat-change.down { color: var(--green); }
+    @media (max-width: 768px) {
+      .stat-row { grid-template-columns: 1fr 1fr; }
+      .analytics-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="brand-icon">◉</span>
+      <span class="brand-name">AirSense</span>
+      <span class="brand-tag">v2.0</span>
+    </div>
+    <div class="nav-links">
+      <a href="../index.html">Dashboard</a>
+      <a href="map.html">Live Map</a>
+      <a href="routes.html">Routes</a>
+      <a href="analytics.html" class="active">Analytics</a>
+      <a href="sensors.html">Sensors</a>
+    </div>
+    <div class="nav-actions">
+      <div class="live-pulse"><span></span> LIVE</div>
+    </div>
+  </nav>
+
+  <div class="page-inner">
+    <h1 class="page-title">Analytics & Trends</h1>
+    <p class="page-sub">Poll trend analytics · AI predictions · Exposure estimation · TimescaleDB time-series data</p>
+
+    <!-- STAT BOXES -->
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-label">Avg AQI Today</div>
+        <div class="stat-value" style="color:var(--amber)">73</div>
+        <div class="stat-change up">↑ 4.2 vs yesterday</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Peak AQI (24h)</div>
+        <div class="stat-value" style="color:var(--red)">95</div>
+        <div class="stat-change">at 09:00 · HITEC City</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Active Sensors</div>
+        <div class="stat-value" style="color:var(--green)">11</div>
+        <div class="stat-change down">↓ 1 offline (Panjagutta)</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Data Points (24h)</div>
+        <div class="stat-value" style="color:var(--blue)">3.2K</div>
+        <div class="stat-change">via MQTT every 5 min</div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="analytics-grid">
+      <div class="card">
+        <div class="card-header">
+          <h2>PM2.5 Weekly Trend</h2>
+          <span class="badge badge--blue">µg/m³</span>
+        </div>
+        <canvas id="pm25Chart" height="120"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>AQI Distribution</h2>
+          <span class="badge badge--purple">30-day</span>
+        </div>
+        <canvas id="distChart" height="120"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>Hourly Exposure Score</h2>
+          <span class="badge badge--green">AQI·min</span>
+        </div>
+        <canvas id="expChart" height="120"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>Sensor Reliability Over Time</h2>
+          <span class="badge badge--green">Score</span>
+        </div>
+        <canvas id="relChart" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>AirSense · Analytics · RF/XGBoost 1-hr AQI forecasting · Celery async processing</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const hours = Array.from({length:12}, (_,i)=>`${i*2}:00`);
+
+    const chartDefaults = {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false }, tooltip: {
+        backgroundColor: '#0d1422',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        titleColor: '#8a96a8',
+        bodyColor: '#e8edf5',
+        titleFont: { family: 'DM Mono', size: 10 },
+        bodyFont: { family: 'DM Mono', size: 12 },
+      }},
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4a5568', font: { family: 'DM Mono', size: 10 } }},
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4a5568', font: { family: 'DM Mono', size: 10 } }}
+      }
+    };
+
+    new Chart(document.getElementById('pm25Chart'), {
+      type: 'bar',
+      data: {
+        labels: days,
+        datasets: [{
+          data: [28, 35, 41, 31, 38, 29, 34],
+          backgroundColor: 'rgba(248,113,113,0.4)',
+          borderColor: '#f87171',
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: { ...chartDefaults }
+    });
+
+    new Chart(document.getElementById('distChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Good','Moderate','Unhealthy','Very Unhealthy'],
+        datasets: [{
+          data: [22, 45, 25, 8],
+          backgroundColor: ['#22d3a5','#fbbf24','#fb923c','#f87171'],
+          borderColor: '#0d1422',
+          borderWidth: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: true, position: 'right', labels: { color: '#8a96a8', font: { family: 'DM Mono', size: 10 }, boxWidth: 10 }},
+          tooltip: { backgroundColor: '#0d1422', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, titleColor: '#8a96a8', bodyColor: '#e8edf5' }
+        }
+      }
+    });
+
+    new Chart(document.getElementById('expChart'), {
+      type: 'line',
+      data: {
+        labels: hours,
+        datasets: [{
+          data: [12,8,6,5,14,32,58,65,52,44,39,42],
+          borderColor: '#a78bfa',
+          borderWidth: 2,
+          backgroundColor: 'rgba(167,139,250,0.08)',
+          tension: 0.4,
+          fill: true,
+          pointRadius: 3,
+          pointBackgroundColor: '#a78bfa',
+        }]
+      },
+      options: { ...chartDefaults }
+    });
+
+    new Chart(document.getElementById('relChart'), {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [
+          { label: 'Banjara Hills', data: [0.89,0.91,0.88,0.92,0.90,0.87,0.91], borderColor: '#22d3a5', borderWidth: 2, tension: 0.4, pointRadius: 2 },
+          { label: 'HITEC City',    data: [0.70,0.65,0.62,0.60,0.63,0.61,0.62], borderColor: '#f87171', borderWidth: 2, tension: 0.4, pointRadius: 2 },
+          { label: 'Jubilee Hills', data: [0.85,0.88,0.86,0.84,0.87,0.88,0.88], borderColor: '#60a5fa', borderWidth: 2, tension: 0.4, pointRadius: 2 },
+        ]
+      },
+      options: {
+        ...chartDefaults,
+        plugins: {
+          ...chartDefaults.plugins,
+          legend: { display: true, position: 'top', labels: { color: '#8a96a8', font: { family: 'DM Mono', size: 10 }, boxWidth: 12, padding: 12 }}
+        },
+        scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, min: 0.5, max: 1.0 }}
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirSense — Hyper-Local Air Quality</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="brand-icon">◉</span>
+      <span class="brand-name">AirSense</span>
+      <span class="brand-tag">v2.0</span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html" class="active">Dashboard</a>
+      <a href="pages/map.html">Live Map</a>
+      <a href="pages/routes.html">Routes</a>
+      <a href="pages/analytics.html">Analytics</a>
+      <a href="pages/sensors.html">Sensors</a>
+    </div>
+    <div class="nav-actions">
+      <div class="live-pulse"><span></span> LIVE</div>
+      <button class="btn-alert">🔔</button>
+    </div>
+  </nav>
+
+  <!-- HERO HEADER -->
+  <header class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <p class="hero-eyebrow">Hyderabad · Banjara Hills Zone</p>
+      <h1 class="hero-aqi-value" id="heroAqi">73</h1>
+      <p class="hero-label">Current AQI — <span class="aqi-status moderate">Moderate</span></p>
+      <p class="hero-sub">Updated <span id="lastUpdate">just now</span> · Reliability Score <strong>0.87</strong></p>
+    </div>
+    <div class="hero-metrics">
+      <div class="metric-pill" data-delay="0">
+        <span class="metric-icon">🌫</span>
+        <span class="metric-val" id="pm25">34.2</span>
+        <span class="metric-unit">µg/m³ PM2.5</span>
+      </div>
+      <div class="metric-pill" data-delay="1">
+        <span class="metric-icon">💨</span>
+        <span class="metric-val" id="co">1.2</span>
+        <span class="metric-unit">ppm CO</span>
+      </div>
+      <div class="metric-pill" data-delay="2">
+        <span class="metric-icon">🌡</span>
+        <span class="metric-val" id="temp">31°C</span>
+        <span class="metric-unit">Temperature</span>
+      </div>
+      <div class="metric-pill" data-delay="3">
+        <span class="metric-icon">💧</span>
+        <span class="metric-val" id="hum">62%</span>
+        <span class="metric-unit">Humidity</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN GRID -->
+  <main class="grid-main">
+
+    <!-- AQI TREND CHART -->
+    <section class="card card--wide" id="trendCard">
+      <div class="card-header">
+        <h2>24-Hour AQI Trend</h2>
+        <div class="tab-group">
+          <button class="tab active" data-range="24h">24h</button>
+          <button class="tab" data-range="7d">7d</button>
+          <button class="tab" data-range="30d">30d</button>
+        </div>
+      </div>
+      <canvas id="trendChart" height="80"></canvas>
+    </section>
+
+    <!-- SENSOR HEALTH -->
+    <section class="card" id="sensorCard">
+      <div class="card-header">
+        <h2>Sensor Network</h2>
+        <span class="badge badge--green">12 Active</span>
+      </div>
+      <div class="sensor-list" id="sensorList"></div>
+    </section>
+
+    <!-- RELIABILITY SCORE -->
+    <section class="card" id="reliabilityCard">
+      <div class="card-header">
+        <h2>Reliability Breakdown</h2>
+      </div>
+      <div class="reliability-bars">
+        <div class="rel-bar-row">
+          <span>Health</span>
+          <div class="rel-bar"><div class="rel-fill" style="width:89%;--c:#4ade80"></div></div>
+          <span>0.4×</span>
+        </div>
+        <div class="rel-bar-row">
+          <span>Freshness</span>
+          <div class="rel-bar"><div class="rel-fill" style="width:93%;--c:#60a5fa"></div></div>
+          <span>0.3×</span>
+        </div>
+        <div class="rel-bar-row">
+          <span>Stability</span>
+          <div class="rel-bar"><div class="rel-fill" style="width:75%;--c:#f59e0b"></div></div>
+          <span>0.2×</span>
+        </div>
+        <div class="rel-bar-row">
+          <span>Density</span>
+          <div class="rel-bar"><div class="rel-fill" style="width:70%;--c:#a78bfa"></div></div>
+          <span>0.1×</span>
+        </div>
+      </div>
+      <div class="score-total">
+        <span>Composite Score</span>
+        <span class="score-val">0.87</span>
+      </div>
+    </section>
+
+    <!-- PREDICTION CARD -->
+    <section class="card" id="predCard">
+      <div class="card-header">
+        <h2>AI Forecast (1-Hour)</h2>
+        <span class="badge badge--blue">RF/XGBoost</span>
+      </div>
+      <div class="forecast-row" id="forecastRow"></div>
+      <p class="forecast-note">Prediction interval: ±8 AQI units</p>
+    </section>
+
+    <!-- POLLUTANT BREAKDOWN -->
+    <section class="card card--wide" id="pollCard">
+      <div class="card-header">
+        <h2>Pollutant Breakdown</h2>
+      </div>
+      <div class="pollutant-grid" id="pollGrid"></div>
+    </section>
+
+    <!-- ROUTE RECOMMENDATION -->
+    <section class="card card--wide" id="routeCard">
+      <div class="card-header">
+        <h2>Smart Route Recommendation</h2>
+        <span class="badge badge--purple">Dijkstra/A*</span>
+      </div>
+      <div class="route-form">
+        <input type="text" placeholder="📍 Start location" class="route-input" value="Banjara Hills" />
+        <input type="text" placeholder="🏁 Destination" class="route-input" value="HITEC City" />
+        <button class="btn-primary" onclick="findRoute()">Find Cleanest Route</button>
+      </div>
+      <div class="route-result" id="routeResult">
+        <div class="route-card active">
+          <div class="route-label">🍃 Cleanest Route</div>
+          <div class="route-path">Banjara Hills Rd → Jubilee Hills → Madhapur → HITEC City</div>
+          <div class="route-stats">
+            <span>⏱ 22 min</span>
+            <span>📏 8.4 km</span>
+            <span>🌿 Exposure: 42 AQI·min</span>
+          </div>
+        </div>
+        <div class="route-card alt">
+          <div class="route-label">⚡ Fastest Route</div>
+          <div class="route-path">Road No.36 → Panjagutta → Ameerpet → HITEC City</div>
+          <div class="route-stats">
+            <span>⏱ 18 min</span>
+            <span>📏 9.1 km</span>
+            <span>☁️ Exposure: 71 AQI·min</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p>AirSense · Google Squad · Student Feasibility + Production Design Patterns · Layer 0–3 Architecture v2.0</p>
+    <p>IoT ESP32 Fleet · LoRaWAN/Wi-Fi · MQTT · PostgreSQL + TimescaleDB + PostGIS</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

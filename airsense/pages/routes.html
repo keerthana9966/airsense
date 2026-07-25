@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirSense — Smart Routes</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    .routes-layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+    .route-panel { display: flex; flex-direction: column; gap: 1rem; }
+    .route-card-full {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .route-card-full:hover { border-color: var(--border2); transform: translateX(2px); }
+    .route-card-full.selected { border-color: rgba(34,211,165,0.4); background: rgba(34,211,165,0.05); }
+    .rc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+    .rc-name { font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; }
+    .rc-badge { font-family: var(--font-mono); font-size: 0.65rem; padding: 2px 8px; border-radius: 100px; }
+    .rc-path { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.75rem; line-height: 1.5; }
+    .rc-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
+    .rc-stat { background: var(--bg3); border-radius: 6px; padding: 0.4rem 0.5rem; text-align: center; }
+    .rc-stat-val { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 500; }
+    .rc-stat-label { font-size: 0.62rem; color: var(--text-faint); }
+    .map-viz {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .map-viz canvas { flex: 1; }
+    .algo-info {
+      background: var(--bg3);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 1rem;
+      border-left: 2px solid var(--purple);
+    }
+    .algo-info strong { color: var(--purple); }
+    @media (max-width: 900px) {
+      .routes-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="brand-icon">◉</span>
+      <span class="brand-name">AirSense</span>
+      <span class="brand-tag">v2.0</span>
+    </div>
+    <div class="nav-links">
+      <a href="../index.html">Dashboard</a>
+      <a href="map.html">Live Map</a>
+      <a href="routes.html" class="active">Routes</a>
+      <a href="analytics.html">Analytics</a>
+      <a href="sensors.html">Sensors</a>
+    </div>
+    <div class="nav-actions">
+      <div class="live-pulse"><span></span> LIVE</div>
+    </div>
+  </nav>
+
+  <div class="page-inner">
+    <h1 class="page-title">Smart Route Recommendation</h1>
+    <p class="page-sub">Modified Dijkstra/A* minimizing distance + personal pollution exposure score</p>
+
+    <div class="card" style="margin-top:1.5rem">
+      <div class="route-form">
+        <input type="text" placeholder="📍 Start location" class="route-input" id="startInput" value="Banjara Hills" />
+        <input type="text" placeholder="🏁 Destination" class="route-input" id="endInput" value="HITEC City" />
+        <select class="route-input" style="max-width:160px;cursor:pointer">
+          <option>🚶 Walking</option>
+          <option>🚲 Cycling</option>
+          <option selected>🚗 Driving</option>
+        </select>
+        <button class="btn-primary" onclick="calcRoutes()">Find Cleanest Route</button>
+      </div>
+    </div>
+
+    <div class="routes-layout">
+      <div class="route-panel" id="routePanel">
+        <div class="route-card-full selected" onclick="selectRoute(this)">
+          <div class="rc-header">
+            <span class="rc-name">🍃 Cleanest Route</span>
+            <span class="rc-badge" style="background:rgba(34,211,165,0.12);color:var(--green);border:1px solid rgba(34,211,165,0.25)">RECOMMENDED</span>
+          </div>
+          <div class="rc-path">Banjara Hills Rd → Jubilee Hills Check Post → Road No.45 → Madhapur → HITEC City Main Gate</div>
+          <div class="rc-stats">
+            <div class="rc-stat"><div class="rc-stat-val" style="color:var(--green)">42</div><div class="rc-stat-label">AQI·min exposure</div></div>
+            <div class="rc-stat"><div class="rc-stat-val">22 min</div><div class="rc-stat-label">Travel time</div></div>
+            <div class="rc-stat"><div class="rc-stat-val">8.4 km</div><div class="rc-stat-label">Distance</div></div>
+          </div>
+        </div>
+
+        <div class="route-card-full" onclick="selectRoute(this)">
+          <div class="rc-header">
+            <span class="rc-name">⚡ Fastest Route</span>
+            <span class="rc-badge" style="background:rgba(251,191,36,0.12);color:var(--amber);border:1px solid rgba(251,191,36,0.25)">FAST</span>
+          </div>
+          <div class="rc-path">Road No.36 → Panjagutta → Ameerpet Flyover → SR Nagar → HITEC City</div>
+          <div class="rc-stats">
+            <div class="rc-stat"><div class="rc-stat-val" style="color:var(--amber)">71</div><div class="rc-stat-label">AQI·min exposure</div></div>
+            <div class="rc-stat"><div class="rc-stat-val">18 min</div><div class="rc-stat-label">Travel time</div></div>
+            <div class="rc-stat"><div class="rc-stat-val">9.1 km</div><div class="rc-stat-label">Distance</div></div>
+          </div>
+        </div>
+
+        <div class="route-card-full" onclick="selectRoute(this)">
+          <div class="rc-header">
+            <span class="rc-name">🔄 Balanced Route</span>
+            <span class="rc-badge" style="background:rgba(56,189,248,0.12);color:var(--blue);border:1px solid rgba(56,189,248,0.25)">BALANCED</span>
+          </div>
+          <div class="rc-path">Punjagutta → Greenlands → Film Nagar → Gachibowli → HITEC City</div>
+          <div class="rc-stats">
+            <div class="rc-stat"><div class="rc-stat-val" style="color:var(--blue)">55</div><div class="rc-stat-label">AQI·min exposure</div></div>
+            <div class="rc-stat"><div class="rc-stat-val">20 min</div><div class="rc-stat-label">Travel time</div></div>
+            <div class="rc-stat"><div class="rc-stat-val">8.7 km</div><div class="rc-stat-label">Distance</div></div>
+          </div>
+        </div>
+
+        <div class="algo-info">
+          <strong>Algorithm:</strong> Modified Dijkstra/A* with composite weight:<br>
+          <code>w(e) = α·dist + β·exposure_score</code><br><br>
+          Exposure inputs: route geometry, real-time AQI predictions (RF/XGBoost), sensor reliability scores.
+        </div>
+      </div>
+
+      <div class="map-viz">
+        <div class="card-header">
+          <h2>Route Visualization</h2>
+          <span class="badge badge--green">PostGIS geometry</span>
+        </div>
+        <canvas id="routeCanvas"></canvas>
+        <div class="algo-info" style="border-color:var(--blue)">
+          <strong>Exposure Estimation Engine:</strong> Calculates personal pollution exposure (AQI·min) along route using geometry + AQI predictions + time-in-zone estimation.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>AirSense · Smart Routes · Modified Dijkstra/A* · Exposure Estimation Engine · PostGIS spatial data</p>
+  </footer>
+
+  <script>
+    function selectRoute(el) {
+      document.querySelectorAll('.route-card-full').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      drawRoutes();
+    }
+
+    function calcRoutes() {
+      const btn = document.querySelector('.btn-primary');
+      btn.textContent = '⏳ Calculating...';
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.textContent = 'Find Cleanest Route';
+        btn.disabled = false;
+        drawRoutes();
+      }, 1400);
+    }
+
+    function drawRoutes() {
+      const canvas = document.getElementById('routeCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.offsetWidth || 500;
+      canvas.height = 340;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+      for (let y = 0; y < canvas.height; y += 50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+
+      const W = canvas.width, H = canvas.height;
+      const A = [W*0.1, H*0.5];  // Start
+      const B = [W*0.9, H*0.5];  // End
+
+      // Route 3 – balanced (blue)
+      ctx.beginPath();
+      ctx.moveTo(...A);
+      ctx.bezierCurveTo(W*0.3, H*0.7, W*0.6, H*0.7, ...B);
+      ctx.strokeStyle = 'rgba(56,189,248,0.4)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6,4]);
+      ctx.stroke();
+
+      // Route 2 – fast (amber)
+      ctx.beginPath();
+      ctx.moveTo(...A);
+      ctx.bezierCurveTo(W*0.3, H*0.3, W*0.6, H*0.3, ...B);
+      ctx.strokeStyle = 'rgba(251,191,36,0.5)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6,4]);
+      ctx.stroke();
+
+      // Route 1 – cleanest (green, solid)
+      ctx.beginPath();
+      ctx.moveTo(...A);
+      ctx.bezierCurveTo(W*0.35, H*0.15, W*0.65, H*0.15, ...B);
+      ctx.strokeStyle = '#22d3a5';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([]);
+      ctx.shadowColor = '#22d3a5';
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Points
+      [[...A, '#22d3a5', 'START'], [...B, '#f87171', 'END']].forEach(([x,y,c,lbl]) => {
+        ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2);
+        ctx.fillStyle = c; ctx.fill();
+        ctx.fillStyle = '#080c14';
+        ctx.font = 'bold 9px DM Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText(lbl, x, y+3.5);
+      });
+
+      // Labels
+      ctx.font = '11px DM Mono';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#22d3a5';
+      ctx.fillText('🍃 Cleanest · 42 AQI·min', W*0.5, H*0.05);
+      ctx.fillStyle = 'rgba(251,191,36,0.7)';
+      ctx.fillText('⚡ Fastest · 71 AQI·min', W*0.5, H*0.26);
+      ctx.fillStyle = 'rgba(56,189,248,0.7)';
+      ctx.fillText('🔄 Balanced · 55 AQI·min', W*0.5, H*0.78);
+    }
+
+    window.addEventListener('load', () => {
+      setTimeout(drawRoutes, 100);
+    });
+    window.addEventListener('resize', drawRoutes);
+  </script>
+</body>
+</html>

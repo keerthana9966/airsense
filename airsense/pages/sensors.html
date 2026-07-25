@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirSense — Sensor Network</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    .sensors-table-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-top: 1.5rem;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-faint);
+      padding: 0.75rem 1.25rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    tbody td {
+      padding: 0.85rem 1.25rem;
+      font-size: 0.8rem;
+      vertical-align: middle;
+    }
+    .td-name { font-weight: 500; color: var(--text); }
+    .td-mono { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim); }
+    .td-aqi  { font-family: var(--font-mono); font-weight: 500; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-weight: 500;
+    }
+    .status-pill.online  { background: rgba(34,211,165,0.12); color: var(--green); border: 1px solid rgba(34,211,165,0.25); }
+    .status-pill.warning { background: rgba(251,191,36,0.12);  color: var(--amber); border: 1px solid rgba(251,191,36,0.25); }
+    .status-pill.offline { background: rgba(248,113,113,0.12); color: var(--red);   border: 1px solid rgba(248,113,113,0.25); }
+    .mini-bar { width: 80px; height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+    .mini-fill { height: 100%; border-radius: 3px; }
+    .top-bar {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+    .search-input {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 0.5rem 0.9rem;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      outline: none;
+      width: 240px;
+    }
+    .search-input:focus { border-color: var(--green); }
+    .search-input::placeholder { color: var(--text-faint); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="brand-icon">◉</span>
+      <span class="brand-name">AirSense</span>
+      <span class="brand-tag">v2.0</span>
+    </div>
+    <div class="nav-links">
+      <a href="../index.html">Dashboard</a>
+      <a href="map.html">Live Map</a>
+      <a href="routes.html">Routes</a>
+      <a href="analytics.html">Analytics</a>
+      <a href="sensors.html" class="active">Sensors</a>
+    </div>
+    <div class="nav-actions">
+      <div class="live-pulse"><span></span> LIVE</div>
+    </div>
+  </nav>
+
+  <div class="page-inner">
+    <h1 class="page-title">Sensor Network</h1>
+    <p class="page-sub">IoT ESP32 Fleet · Sensirion SPS30 · DHT22 · LoRaWAN/Wi-Fi · Sensor Health Monitor</p>
+
+    <div class="top-bar">
+      <input type="text" class="search-input" placeholder="🔍 Search sensors..." oninput="filterTable(this.value)" />
+      <span class="badge badge--green">11 Online</span>
+      <span class="badge badge--red" style="background:rgba(251,191,36,0.12);color:var(--amber);border-color:rgba(251,191,36,0.25)">1 Warning</span>
+      <span class="badge badge--red">1 Offline</span>
+      <span style="margin-left:auto; font-family:var(--font-mono); font-size:0.7rem; color:var(--text-faint)">Last sync: just now</span>
+    </div>
+
+    <div class="sensors-table-wrap">
+      <table id="sensorsTable">
+        <thead>
+          <tr>
+            <th>Sensor ID</th>
+            <th>Location</th>
+            <th>Status</th>
+            <th>AQI</th>
+            <th>PM2.5 (µg/m³)</th>
+            <th>CO (ppm)</th>
+            <th>Reliability</th>
+            <th>Last Calibration</th>
+            <th>Uptime</th>
+          </tr>
+        </thead>
+        <tbody id="sensorTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>AirSense · Sensor Network · Calibration & Reliability Score Engine · 0.4×Health + 0.3×Freshness + 0.2×Stability + 0.1×Density</p>
+  </footer>
+
+  <script>
+    const sensors = [
+      { id: 'SNS-001', location: 'Banjara Hills, Road No.12',  status: 'online',  aqi: 68,  pm25: 28.1, co: 1.1, rel: 0.91, cal: '2026-03-25', uptime: '99.2%' },
+      { id: 'SNS-002', location: 'HITEC City, Cyber Gateway',  status: 'warning', aqi: 95,  pm25: 42.3, co: 1.8, rel: 0.62, cal: '2026-02-18', uptime: '87.4%' },
+      { id: 'SNS-003', location: 'Jubilee Hills, Check Post',   status: 'online',  aqi: 72,  pm25: 31.4, co: 1.2, rel: 0.88, cal: '2026-03-20', uptime: '97.8%' },
+      { id: 'SNS-004', location: 'Panjagutta, Rly Station',    status: 'offline', aqi: null, pm25: null, co: null, rel: 0.00, cal: '2026-01-10', uptime: '52.1%' },
+      { id: 'SNS-005', location: 'Ameerpet, Metro Station',    status: 'online',  aqi: 77,  pm25: 34.8, co: 1.4, rel: 0.79, cal: '2026-03-18', uptime: '95.5%' },
+      { id: 'SNS-006', location: 'Kukatpally, KPHB Colony',    status: 'online',  aqi: 55,  pm25: 22.1, co: 0.9, rel: 0.94, cal: '2026-03-27', uptime: '99.9%' },
+      { id: 'SNS-007', location: 'Madhapur, Durgam Cheruvu',  status: 'online',  aqi: 81,  pm25: 36.2, co: 1.5, rel: 0.85, cal: '2026-03-22', uptime: '96.3%' },
+      { id: 'SNS-008', location: 'Gachibowli, Stadium Rd',     status: 'online',  aqi: 60,  pm25: 24.8, co: 1.0, rel: 0.92, cal: '2026-03-26', uptime: '98.7%' },
+      { id: 'SNS-009', location: 'Kondapur, Mindspace',        status: 'online',  aqi: 64,  pm25: 26.5, co: 1.1, rel: 0.89, cal: '2026-03-24', uptime: '98.1%' },
+      { id: 'SNS-010', location: 'Miyapur, Metro Hub',         status: 'online',  aqi: 58,  pm25: 23.4, co: 0.8, rel: 0.93, cal: '2026-03-28', uptime: '99.5%' },
+      { id: 'SNS-011', location: 'LB Nagar, Intersection',    status: 'online',  aqi: 88,  pm25: 39.1, co: 1.7, rel: 0.77, cal: '2026-03-15', uptime: '93.2%' },
+      { id: 'SNS-012', location: 'Uppal, Ring Road',           status: 'online',  aqi: 83,  pm25: 37.0, co: 1.6, rel: 0.81, cal: '2026-03-19', uptime: '95.0%' },
+    ];
+
+    function aqiColor(v) {
+      if (v === null) return '#4a5568';
+      if (v < 50) return '#22d3a5';
+      if (v < 100) return '#fbbf24';
+      if (v < 150) return '#fb923c';
+      return '#f87171';
+    }
+
+    function relColor(v) {
+      if (v >= 0.85) return '#22d3a5';
+      if (v >= 0.70) return '#fbbf24';
+      return '#f87171';
+    }
+
+    function renderTable(data) {
+      document.getElementById('sensorTableBody').innerHTML = data.map(s => `
+        <tr>
+          <td class="td-mono">${s.id}</td>
+          <td class="td-name">${s.location}</td>
+          <td><span class="status-pill ${s.status}">
+            ${s.status === 'online' ? '●' : s.status === 'warning' ? '⚠' : '○'} ${s.status}
+          </span></td>
+          <td class="td-aqi" style="color:${aqiColor(s.aqi)}">${s.aqi ?? '—'}</td>
+          <td class="td-mono">${s.pm25 ?? '—'}</td>
+          <td class="td-mono">${s.co ?? '—'}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <div class="mini-bar"><div class="mini-fill" style="width:${s.rel*100}%;background:${relColor(s.rel)}"></div></div>
+              <span class="td-mono">${s.rel > 0 ? s.rel.toFixed(2) : 'N/A'}</span>
+            </div>
+          </td>
+          <td class="td-mono">${s.cal}</td>
+          <td class="td-mono">${s.uptime}</td>
+        </tr>`).join('');
+    }
+
+    function filterTable(q) {
+      const filtered = sensors.filter(s =>
+        s.id.toLowerCase().includes(q.toLowerCase()) ||
+        s.location.toLowerCase().includes(q.toLowerCase()) ||
+        s.status.toLowerCase().includes(q.toLowerCase())
+      );
+      renderTable(filtered);
+    }
+
+    renderTable(sensors);
+  </script>
+</body>
+</html>

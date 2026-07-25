@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirSense — Live Map</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    .map-container {
+      position: relative;
+      height: calc(100vh - 200px);
+      background: var(--bg3);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-top: 1.5rem;
+    }
+    .map-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 50%, rgba(34,211,165,0.05) 0%, transparent 70%);
+    }
+    .map-placeholder p { color: var(--text-dim); font-family: var(--font-mono); font-size: 0.8rem; }
+    .map-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+    .sensor-pin {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+    }
+    .pin-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid;
+      box-shadow: 0 0 12px currentColor;
+      transition: transform 0.2s;
+    }
+    .sensor-pin:hover .pin-dot { transform: scale(1.4); }
+    .pin-label {
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 4px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      white-space: nowrap;
+      color: var(--text);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .sensor-pin:hover .pin-label { opacity: 1; }
+    .map-legend {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      background: rgba(8,12,20,0.9);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+    }
+    .legend-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; color: var(--text-dim); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .heatmap-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.3;
+      background:
+        radial-gradient(ellipse 120px 80px at 35% 40%, rgba(251,191,36,0.6) 0%, transparent 70%),
+        radial-gradient(ellipse 80px 60px at 60% 55%, rgba(248,113,113,0.5) 0%, transparent 70%),
+        radial-gradient(ellipse 100px 80px at 25% 70%, rgba(34,211,165,0.5) 0%, transparent 70%),
+        radial-gradient(ellipse 90px 70px at 70% 30%, rgba(251,191,36,0.4) 0%, transparent 70%),
+        radial-gradient(ellipse 60px 60px at 50% 80%, rgba(34,211,165,0.6) 0%, transparent 70%);
+    }
+    .map-controls {
+      display: flex; gap: 0.75rem; margin-bottom: 0;
+      flex-wrap: wrap; align-items: center;
+    }
+    .toggle-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text-dim);
+      padding: 0.4rem 0.9rem;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toggle-btn.on { color: var(--green); border-color: rgba(34,211,165,0.35); background: rgba(34,211,165,0.07); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="brand-icon">◉</span>
+      <span class="brand-name">AirSense</span>
+      <span class="brand-tag">v2.0</span>
+    </div>
+    <div class="nav-links">
+      <a href="../index.html">Dashboard</a>
+      <a href="map.html" class="active">Live Map</a>
+      <a href="routes.html">Routes</a>
+      <a href="analytics.html">Analytics</a>
+      <a href="sensors.html">Sensors</a>
+    </div>
+    <div class="nav-actions">
+      <div class="live-pulse"><span></span> LIVE</div>
+    </div>
+  </nav>
+
+  <div class="page-inner">
+    <h1 class="page-title">Live AQI Heatmap</h1>
+    <p class="page-sub">Street-level air quality · Hyderabad sensor network · Updated every 5 min via MQTT</p>
+
+    <div class="map-controls">
+      <button class="toggle-btn on" onclick="this.classList.toggle('on')">🌡 Heatmap</button>
+      <button class="toggle-btn on" onclick="this.classList.toggle('on')">📍 Sensors</button>
+      <button class="toggle-btn" onclick="this.classList.toggle('on')">🛣 Routes</button>
+      <button class="toggle-btn" onclick="this.classList.toggle('on')">🌬 Wind</button>
+      <span style="margin-left:auto; font-family:var(--font-mono); font-size:0.7rem; color:var(--text-faint)">
+        ℹ Connect Mapbox/Leaflet for live tiles
+      </span>
+    </div>
+
+    <div class="map-container">
+      <div class="map-grid"></div>
+      <div class="heatmap-overlay"></div>
+
+      <!-- Sensor pins positioned as % -->
+      <div class="sensor-pin" style="left:35%;top:40%">
+        <div class="pin-dot" style="color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,0.2)"></div>
+        <div class="pin-label">Banjara Hills #1 · AQI 68</div>
+      </div>
+      <div class="sensor-pin" style="left:60%;top:55%">
+        <div class="pin-dot" style="color:#f87171;border-color:#f87171;background:rgba(248,113,113,0.2)"></div>
+        <div class="pin-label">HITEC City #2 · AQI 95</div>
+      </div>
+      <div class="sensor-pin" style="left:25%;top:70%">
+        <div class="pin-dot" style="color:#22d3a5;border-color:#22d3a5;background:rgba(34,211,165,0.2)"></div>
+        <div class="pin-label">Jubilee Hills #3 · AQI 72</div>
+      </div>
+      <div class="sensor-pin" style="left:50%;top:80%">
+        <div class="pin-dot" style="color:#22d3a5;border-color:#22d3a5;background:rgba(34,211,165,0.2)"></div>
+        <div class="pin-label">Kukatpally #6 · AQI 55</div>
+      </div>
+      <div class="sensor-pin" style="left:70%;top:30%">
+        <div class="pin-dot" style="color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,0.2)"></div>
+        <div class="pin-label">Ameerpet #5 · AQI 77</div>
+      </div>
+      <div class="sensor-pin" style="left:45%;top:25%">
+        <div class="pin-dot" style="color:#4a5568;border-color:#4a5568;background:rgba(74,85,104,0.2)"></div>
+        <div class="pin-label">Panjagutta #4 · OFFLINE</div>
+      </div>
+
+      <div class="map-legend">
+        <div style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-faint);margin-bottom:0.5rem;letter-spacing:1px;">AQI SCALE</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#22d3a5"></div>Good (0–50)</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#fbbf24"></div>Moderate (51–100)</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#fb923c"></div>Unhealthy (101–150)</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#f87171"></div>Very Unhealthy (151+)</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#4a5568"></div>Offline</div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>AirSense · Live Map · PostGIS spatial queries · Sensor data via LoRaWAN/MQTT</p>
+  </footer>
+</body>
+</html>
